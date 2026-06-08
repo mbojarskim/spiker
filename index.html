@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Spiker - Zawody Lekkoatletyczne</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header h1 { font-size: 1.5rem; }
+        .user-info { display: flex; align-items: center; gap: 15px; }
+        .logout-btn { background: #dc3545; padding: 8px 20px; border-radius: 40px; cursor: pointer; border: none; color: white; font-size: 0.9rem; }
+        .logout-btn:hover { background: #c82333; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { background: #e9ecef; color: #333; padding: 12px 24px; border: none; border-radius: 40px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: all 0.3s; }
+        .tab-btn.active { background: #0f3460; color: white; }
+        .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card h3 { margin-bottom: 15px; color: #1a1a2e; border-left: 4px solid #0f3460; padding-left: 12px; }
+        .protocol-list { max-height: 400px; overflow-y: auto; }
+        .protocol-item { background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid #e9ecef; }
+        .protocol-item:hover { background: #e9ecef; transform: translateX(5px); }
+        .protocol-item.selected { background: #d4edda; border-left: 4px solid #28a745; }
+        .protocol-title { font-weight: bold; font-size: 1rem; margin-bottom: 5px; }
+        .protocol-details { font-size: 0.8rem; color: #666; }
+        .start-list-table, .ranking-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85rem; }
+        .start-list-table th, .start-list-table td, .ranking-table th, .ranking-table td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        .start-list-table th, .ranking-table th { background: #0f3460; color: white; }
+        .position-1 { background: #fff9c4; font-weight: bold; }
+        .position-2 { background: #e8f5e9; }
+        .position-3 { background: #e3f2fd; }
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; }
+        .status-pk { background: #e3f2fd; color: #1565c0; }
+        .status-dnf { background: #fff3e0; color: #e65100; }
+        .status-dns { background: #fce4ec; color: #c2185b; }
+        .status-dq { background: #ffebee; color: #c62828; }
+        button { background: #0f3460; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; margin-top: 15px; }
+        button:hover { background: #1a4a7a; }
+        .medal-btn-category { background: #ffc107; color: #333; margin-left: 15px; margin-top: 0; }
+        .medal-btn-category:disabled { background: #6c757d; color: white; cursor: not-allowed; }
+        .info-note { background: #e7f3ff; border-left: 4px solid #0f3460; padding: 10px; margin: 10px 0; font-size: 0.85rem; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .error-item { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 8px; margin: 10px 0; }
+        .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); display: flex; justify-content: center; align-items: center; z-index: 10000; }
+        .login-box { background: white; padding: 40px; border-radius: 32px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+        .login-box h2 { margin-bottom: 10px; color: #1a1a2e; }
+        .login-box p { color: #666; margin-bottom: 25px; }
+        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 40px; border: 1px solid #cbd5e1; font-size: 1rem; }
+        .login-box button { width: 100%; margin-top: 15px; background: #28a745; padding: 12px; font-size: 1.1rem; color: white; border: none; border-radius: 40px; cursor: pointer; }
+        .login-error { color: #dc3545; margin-top: 15px; display: none; }
+        .btn-info { background: #17a2b8; margin-bottom: 10px; }
+        @media (max-width: 768px) { .start-list-table, .ranking-table { font-size: 0.7rem; } th, td { padding: 6px; } }
+    </style>
+</head>
+<body>
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-box">
+            <div style="font-size: 48px; margin-bottom: 15px;">🎤</div>
+            <h2>Spiker - Zawody</h2>
+            <p>Zaloguj się aby kontynuować</p>
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Hasło">
+            <button id="loginBtn">Zaloguj</button>
+            <div id="loginError" class="login-error">❌ Nieprawidłowy email lub hasło</div>
+        </div>
+    </div>
+
+    <div id="mainContent" style="display: none;">
+        <div class="container">
+            <div class="header">
+                <h1>🎤 Spiker - Zawody Lekkoatletyczne</h1>
+                <div class="user-info">
+                    <span id="userEmail"></span>
+                    <button class="logout-btn" id="logoutBtn">Wyloguj</button>
+                </div>
+            </div>
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="start">📋 Listy startowe</button>
+                <button class="tab-btn" data-tab="results">🏆 Wyniki końcowe</button>
+            </div>
+            <div id="startTab" class="tab-content">
+                <div class="card">
+                    <h3>📋 Listy startowe</h3>
+                    <button id="refreshStartBtn" class="btn-info">🔄 Odśwież</button>
+                    <div id="startProtocolsList" class="protocol-list" style="margin-top: 15px;"></div>
+                    <div id="startListContent" style="margin-top: 20px; display: none;">
+                        <h4>🏁 Lista startowa</h4>
+                        <div id="startListTable"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="resultsTab" class="tab-content" style="display: none;">
+                <div class="card">
+                    <h3>🏆 Wyniki końcowe</h3>
+                    <button id="refreshRankingBtn" class="btn-info">🔄 Odśwież wyniki</button>
+                    <button id="printRankingBtn" class="btn-info" style="margin-left:10px;">🖨️ Drukuj</button>
+                    <div id="rankingContainer" style="margin-top: 20px;"></div>
+                </div>
+            </div>
+            <div id="messages"></div>
+        </div>
+    </div>
+
+    <script>
+    // ==================== KONFIGURACJA FIREBASE ====================
+    const firebaseConfig = {
+        apiKey: "AIzaSyD2HMHEDyZ6jrUHwjv8wDaxd7swi9rtn2k",
+        authDomain: "zawodylekkoatletyczne.firebaseapp.com",
+        databaseURL: "https://zawodylekkoatletyczne-default-rtdb.firebaseio.com",
+        projectId: "zawodylekkoatletyczne",
+        storageBucket: "zawodylekkoatletyczne.firebasestorage.app",
+        messagingSenderId: "812081786407",
+        appId: "1:812081786407:web:7f820e436490693a9d2802"
+    };
+
+    let database, auth;
+    let isFirebaseConnected = false;
+    let currentUser = null;
+    let medalowane = {};
+
+    try {
+        firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        auth = firebase.auth();
+        database.ref('.info/connected').on('value', (snap) => {
+            isFirebaseConnected = snap.val() === true;
+            if (currentUser) addMessage(isFirebaseConnected ? '✅ Połączono z Firebase' : '⚠️ Brak połączenia', isFirebaseConnected ? 'success' : 'error');
+        });
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('userEmail').innerText = user.email;
+                addMessage(`✅ Zalogowano jako: ${user.email}`, 'success');
+                loadMedalowane();
+                loadStartProtocols();
+                loadRanking(); // od razu ładujemy wyniki
+            } else {
+                document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('loginOverlay').style.display = 'flex';
+                currentUser = null;
+            }
+        });
+    } catch (e) { console.error("Firebase init error:", e); }
+
+    function login() {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        if (!email || !password) {
+            document.getElementById('loginError').style.display = 'block';
+            document.getElementById('loginError').innerText = '❌ Wprowadź email i hasło';
+            return;
+        }
+        document.getElementById('loginError').style.display = 'none';
+        auth.signInWithEmailAndPassword(email, password)
+            .catch(() => {
+                document.getElementById('loginError').style.display = 'block';
+                document.getElementById('loginError').innerText = '❌ Nieprawidłowy email lub hasło';
+            });
+    }
+    function logout() { auth.signOut(); }
+    function addMessage(msg, type) {
+        const container = document.getElementById('messages');
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.innerHTML = msg;
+        container.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), 4000);
+    }
+
+    // ==================== MEDALOWANE ====================
+    async function loadMedalowane() {
+        const snapshot = await database.ref('medalowane').once('value');
+        medalowane = snapshot.val() || {};
+    }
+    async function setMedalowane(protocolId, konkurencja, kategoria) {
+        const medalData = {
+            konkurencja: konkurencja,
+            kategoria: kategoria,
+            data_medalowania: new Date().toISOString(),
+            medalowane: true
+        };
+        await database.ref(`medalowane/${protocolId}`).set(medalData);
+        medalowane[protocolId] = medalData;
+        addMessage(`🏅 Zaznaczono medalistów dla ${konkurencja} - ${kategoria}`, 'success');
+        loadRanking(); // odśwież widok
+    }
+
+    // ==================== LISTY STARTOWE ====================
+    async function loadStartProtocols() {
+        const container = document.getElementById('startProtocolsList');
+        if (!container) return;
+        container.innerHTML = '<div class="loading">⏳ Ładowanie...</div>';
+        const snapshot = await database.ref('protokoly').once('value');
+        const data = snapshot.val();
+        if (!data || Object.keys(data).length === 0) {
+            container.innerHTML = '<div class="error-item">📭 Brak protokołów.</div>';
+            return;
+        }
+        const protocols = Object.entries(data).map(([id, p]) => ({ id, ...p }));
+        protocols.sort((a, b) => new Date(b.data_utworzenia) - new Date(a.data_utworzenia));
+        let html = '';
+        for (const p of protocols) {
+            html += `<div class="protocol-item" data-id="${p.id}">
+                <div class="protocol-title">${p.konkurencja || '?'} - Bieg ${p.numer_biegu || '?'} (${p.kategoria || '?'})</div>
+                <div class="protocol-details">Czas startu: ${p.czas_startu || 'brak'} | Tory: ${p.ilosc_torow || 0}</div>
+            </div>`;
+        }
+        container.innerHTML = html;
+        document.querySelectorAll('#startProtocolsList .protocol-item').forEach(el => {
+            el.addEventListener('click', async () => {
+                const id = el.getAttribute('data-id');
+                const protocol = protocols.find(p => p.id === id);
+                await loadStartDetails(protocol);
+                document.querySelectorAll('#startProtocolsList .protocol-item').forEach(p => p.classList.remove('selected'));
+                el.classList.add('selected');
+            });
+        });
+    }
+
+    async function loadStartDetails(protocol) {
+        const tory = protocol.tory || [];
+        // Pobierz dane zawodników z bazy (kategorie)
+        const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
+        const zawodnicyData = zawodnicySnapshot.val() || {};
+        function getKategoria(zawodnikId, nrStartowy) {
+            if (zawodnikId && zawodnicyData[zawodnikId]) {
+                const z = zawodnicyData[zawodnikId];
+                return z.pelna_kategoria || z.kategoria_wiekowa || '';
+            }
+            if (nrStartowy) {
+                for (const [id, z] of Object.entries(zawodnicyData)) {
+                    if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
+                        return z.pelna_kategoria || z.kategoria_wiekowa || '';
+                    }
+                }
+            }
+            return '';
+        }
+        let html = `<table class="start-list-table"><thead><th>Tor</th><th>Nr startowy</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Konkurencje</th></thead><tbody>`;
+        for (const tor of tory) {
+            const zawodnik = tor.zawodnik || {};
+            const kategoria = getKategoria(zawodnik.id, tor.nr_startowy);
+            const rocznik = zawodnik.rocznik || '-';
+            const konkurencje = [zawodnik.konkurencja1, zawodnik.konkurencja2].filter(k => k && k !== '').join(', ') || '-';
+            html += `<tr><td>${tor.numer}</td><td>${tor.nr_startowy || '-'}</td><td><strong>${zawodnik.imie || ''} ${zawodnik.nazwisko || ''}</strong></td><td>${rocznik}</td><td>${kategoria || '-'}</td><td>${konkurencje}</td></tr>`;
+        }
+        html += `</tbody></table>`;
+        document.getElementById('startListTable').innerHTML = html;
+        document.getElementById('startListContent').style.display = 'block';
+    }
+
+    // ==================== WYNIKI KOŃCOWE (identyczne jak w panelu) ====================
+    async function loadRanking() {
+        const container = document.getElementById('rankingContainer');
+        if (!container) return;
+        container.innerHTML = '<div class="loading">⏳ Ładowanie wyników...</div>';
+        
+        const snapshot = await database.ref('protokoly').once('value');
+        const data = snapshot.val();
+        if (!data || Object.keys(data).length === 0) {
+            container.innerHTML = '<div class="card">📭 Brak protokołów z wynikami.</div>';
+            return;
+        }
+        
+        // Zbierz wszystkich zawodników z wszystkich protokołów (pomijając DNS)
+        const allResults = [];
+        for (const [protocolId, protocol] of Object.entries(data)) {
+            if (!protocol.wyniki || !protocol.tory) continue;
+            const tory = protocol.tory, wyniki = protocol.wyniki;
+            for (let i = 0; i < tory.length && i < wyniki.length; i++) {
+                const tor = tory[i], wynik = wyniki[i], zawodnik = tor.zawodnik || {};
+                if (wynik.status === 'DNS') continue;
+                allResults.push({
+                    id: zawodnik.id,
+                    nr_startowy: tor.nr_startowy || '',
+                    imie: zawodnik.imie || '',
+                    nazwisko: zawodnik.nazwisko || '',
+                    rocznik: zawodnik.rocznik || '',
+                    kategoria: protocol.kategoria || '',   // kategoria biegu
+                    konkurencja: protocol.konkurencja || '',
+                    numer_biegu: protocol.numer_biegu || '',
+                    tor: tor.numer,
+                    status: wynik.status || null,
+                    miejsce_w_biegu: wynik.miejsce || null,
+                    czas_biegu_format: wynik.czas_biegu_format || '',
+                    czas_biegu_sekundy: wynik.czas_biegu_sekundy || null,
+                    protocolId: protocolId
+                });
+            }
+        }
+        
+        if (allResults.length === 0) {
+            container.innerHTML = '<div class="card">📭 Brak wyników.</div>';
+            return;
+        }
+        
+        // Zlicz duplikaty numerów startowych TYLKO dla normalnych (bez statusu)
+        const nrStartowyCount = {};
+        for (const r of allResults) {
+            if (!r.status || r.status === '') {
+                if (r.nr_startowy) {
+                    nrStartowyCount[r.nr_startowy] = (nrStartowyCount[r.nr_startowy] || 0) + 1;
+                }
+            }
+        }
+        
+        // Grupowanie po konkurencji i kategorii
+        const groups = {};
+        for (const r of allResults) {
+            const key = `${r.konkurencja}_${r.kategoria}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+        }
+        
+        let html = '';
+        for (const [key, results] of Object.entries(groups)) {
+            const [konkurencja, kategoria] = key.split('_');
+            const protocolId = results[0].protocolId;
+            const isMedalowane = medalowane[protocolId];
+            
+            // Podział na grupy
+            const normalni = results.filter(r => !r.status || r.status === '');
+            const pk = results.filter(r => r.status === 'PK');
+            const inni = results.filter(r => r.status && r.status !== 'PK');
+            
+            // Sortowanie
+            normalni.sort((a, b) => (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999));
+            pk.sort((a, b) => (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999));
+            const statusOrder = { 'DNF': 0, 'DQ': 1, 'DNS': 2 };
+            inni.sort((a, b) => {
+                const orderA = statusOrder[a.status] || 3;
+                const orderB = statusOrder[b.status] || 3;
+                if (orderA !== orderB) return orderA - orderB;
+                return (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999);
+            });
+            
+            // Nadanie pozycji tylko dla normalnych
+            let position = 1;
+            for (const r of normalni) {
+                r.pozycja = position++;
+            }
+            
+            html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                    <h3>${konkurencja || '?'} - ${kategoria || '?'}</h3>
+                    <button class="medal-btn-category" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoria}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
+                </div>
+                ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
+                <table class="ranking-table"><thead><th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Czas</th><th>Bieg</th><th>Status</th></thead><tbody>`;
+            
+            // Normalni
+            for (const r of normalni) {
+                const isDuplicate = nrStartowyCount[r.nr_startowy] > 2;
+                const nrStyle = isDuplicate ? 'style="background:#fff3cd; font-weight:bold;"' : '';
+                let rowClass = '';
+                if (r.pozycja === 1) rowClass = 'position-1';
+                else if (r.pozycja === 2) rowClass = 'position-2';
+                else if (r.pozycja === 3) rowClass = 'position-3';
+                html += `<tr class="${rowClass}">
+                    <td class="position-cell"><strong>${r.pozycja}</strong></td>
+                    <td ${nrStyle}>${r.nr_startowy || '-'}${isDuplicate ? ' ⚠️' : ''}</td>
+                    <td><strong>${r.imie} ${r.nazwisko}</strong></td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td><strong>${r.czas_biegu_format || '-'}</strong></td>
+                    <td>${r.numer_biegu || '-'}</td>
+                    <td>-</td>
+                </tr>`;
+            }
+            // PK
+            for (const r of pk) {
+                html += `<tr>
+                    <td class="position-cell">PK</td>
+                    <td>${r.nr_startowy || '-'}</td>
+                    <td>${r.imie} ${r.nazwisko}</td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.czas_biegu_format || '-'}</td>
+                    <td>${r.numer_biegu || '-'}</td>
+                    <td><span class="status-badge status-pk">PK</span></td>
+                </tr>`;
+            }
+            // DNF, DQ, DNS
+            for (const r of inni) {
+                let statusClass = '';
+                if (r.status === 'DNF') statusClass = 'status-dnf';
+                else if (r.status === 'DQ') statusClass = 'status-dq';
+                else if (r.status === 'DNS') statusClass = 'status-dns';
+                html += `<tr>
+                    <td class="position-cell">${r.status}</td>
+                    <td>${r.nr_startowy || '-'}</td>
+                    <td>${r.imie} ${r.nazwisko}</td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.czas_biegu_format || '-'}</td>
+                    <td>${r.numer_biegu || '-'}</td>
+                    <td><span class="status-badge ${statusClass}">${r.status}</span></td>
+                </tr>`;
+            }
+            html += `</tbody></table></div>`;
+        }
+        container.innerHTML = html;
+        addMessage(`✅ Załadowano ${allResults.length} wyników`, 'success');
+        
+        // Obsługa przycisków medalowania
+        document.querySelectorAll('.medal-btn-category').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const protocolId = btn.getAttribute('data-protocol-id');
+                const konkurencja = btn.getAttribute('data-konkurencja');
+                const kategoria = btn.getAttribute('data-kategoria');
+                await setMedalowane(protocolId, konkurencja, kategoria);
+            });
+        });
+    }
+    
+    // ==================== ZAKŁADKI ====================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.getAttribute('data-tab');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('startTab').style.display = tab === 'start' ? 'block' : 'none';
+            document.getElementById('resultsTab').style.display = tab === 'results' ? 'block' : 'none';
+            if (tab === 'start') loadStartProtocols();
+            if (tab === 'results') loadRanking();
+        });
+    });
+    
+    document.getElementById('refreshStartBtn').addEventListener('click', () => loadStartProtocols());
+    document.getElementById('refreshRankingBtn').addEventListener('click', () => loadRanking());
+    document.getElementById('printRankingBtn').addEventListener('click', () => window.print());
+    document.getElementById('loginBtn').addEventListener('click', login);
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    </script>
+</body>
+</html>
