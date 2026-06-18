@@ -362,9 +362,27 @@
             return (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999);
         });
         
-        let position = 1;
-        for (const r of normalni) r.pozycja = position++;
-        
+        // Przyznawanie miejsc z uwzględnieniem ex aequo
+		let position = 1;
+		let i = 0;
+		while (i < normalni.length) {
+			let j = i;
+			// Znajdź wszystkich zawodników z tym samym wynikiem
+			while (j < normalni.length - 1 && 
+				   normalni[j].najlepszy === normalni[j+1].najlepszy &&
+				   JSON.stringify(normalni[j].wszystkie_proby || []) === JSON.stringify(normalni[j+1].wszystkie_proby || [])) {
+				j++;
+			}
+			// Jeśli więcej niż jeden zawodnik ma identyczne wyniki -> ex aequo
+			const count = j - i + 1;
+			for (let k = i; k <= j; k++) {
+				normalni[k].pozycja = position;
+				normalni[k].ex_aequo = count > 1; // flaga dla ex aequo
+			}
+			// Przesuń pozycję o liczbę zawodników w grupie
+			position += count;
+			i = j + 1;
+		}
         html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                 <h3>${konkurencja || '?'} - ${kategoriaBiegu || '?'} ${isZakonczone ? '🔒' : ''}</h3>
@@ -437,144 +455,187 @@
 }
 
     // ==================== WYNIKI TECHNICZNE (z informacją o zakończeniu, ale bez blokady medalowania) ====================
-    async function loadTechnicalRanking() {
-        const container = document.getElementById('technicalContainer');
-        if (!container) return;
-        container.innerHTML = '<div class="loading">⏳ Ładowanie wyników technicznych...</div>';
-        
-        const snapshot = await database.ref('protokoly_techniczne').once('value');
-        const data = snapshot.val();
-        if (!data || Object.keys(data).length === 0) {
-            container.innerHTML = '<div class="card">📭 Brak protokołów technicznych.</div>';
-            return;
+   async function loadTechnicalRanking() {
+    const container = document.getElementById('technicalContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">⏳ Ładowanie wyników technicznych...</div>';
+    
+    const snapshot = await database.ref('protokoly_techniczne').once('value');
+    const data = snapshot.val();
+    if (!data || Object.keys(data).length === 0) {
+        container.innerHTML = '<div class="card">📭 Brak protokołów technicznych.</div>';
+        return;
+    }
+    
+    const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
+    const zawodnicyData = zawodnicySnapshot.val() || {};
+    function getPelnaKategoria(zawodnikId, nrStartowy) {
+        if (zawodnikId && zawodnicyData[zawodnikId]) {
+            const z = zawodnicyData[zawodnikId];
+            return z.pelna_kategoria || z.kategoria_wiekowa || '';
         }
-        
-        // Pobierz dane zawodników (kategorie)
-        const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
-        const zawodnicyData = zawodnicySnapshot.val() || {};
-        function getPelnaKategoria(zawodnikId, nrStartowy) {
-            if (zawodnikId && zawodnicyData[zawodnikId]) {
-                const z = zawodnicyData[zawodnikId];
-                return z.pelna_kategoria || z.kategoria_wiekowa || '';
-            }
-            if (nrStartowy) {
-                for (const [id, z] of Object.entries(zawodnicyData)) {
-                    if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
-                        return z.pelna_kategoria || z.kategoria_wiekowa || '';
-                    }
+        if (nrStartowy) {
+            for (const [id, z] of Object.entries(zawodnicyData)) {
+                if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
+                    return z.pelna_kategoria || z.kategoria_wiekowa || '';
                 }
             }
-            return '';
         }
-        
-        // Zbierz wszystkich zawodników ze wszystkich protokołów technicznych, wraz z flagą zakonczone
-        const allTechnical = [];
-        for (const [protocolId, protocol] of Object.entries(data)) {
-            if (!protocol.zawodnicy) continue;
-            const zakonczone = protocol.zakonczone === true; // flaga z protokołu
-            const zawodnicy = protocol.zawodnicy;
-            for (const [nr, z] of Object.entries(zawodnicy)) {
-                const pelnaKat = getPelnaKategoria(z.id, z.nr_startowy) || z.kategoria;
-                const najlepszy = z.najlepszy ? parseFloat(z.najlepszy) : null;
-                allTechnical.push({
-                    nr_startowy: z.nr_startowy,
-                    imie: z.imie,
-                    nazwisko: z.nazwisko,
-                    rocznik: z.rocznik,
-                    pelna_kategoria: pelnaKat,
-                    konkurencja: protocol.konkurencja,
-                    kategoria_biegu: protocol.kategoria,
-                    najlepszy: najlepszy,
-                    pk: z.pk === true,
-                    protocolId: protocolId,
-                    zakonczone: zakonczone
-                });
-            }
-        }
-        
-        if (allTechnical.length === 0) {
-            container.innerHTML = '<div class="card">📭 Brak wyników technicznych.</div>';
-            return;
-        }
-        
-        // Grupowanie po konkurencji i kategorii
-        const groups = {};
-        for (const r of allTechnical) {
-            const key = `${r.konkurencja}_${r.kategoria_biegu}`;
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(r);
-        }
-        
-        let html = '';
-        for (const [key, results] of Object.entries(groups)) {
-            const [konkurencja, kategoria] = key.split('_');
-            const protocolId = results[0].protocolId;
-            const isMedalowane = medalowane[protocolId];
-            const isZakonczone = results.some(r => r.zakonczone === true); // czy choć jeden protokół w grupie jest zakończony
-            
-            // Podział na PK i normalnych
-            const normalni = results.filter(r => !r.pk);
-            const pk = results.filter(r => r.pk === true);
-            
-            normalni.sort((a, b) => (b.najlepszy || 0) - (a.najlepszy || 0));
-            pk.sort((a, b) => (b.najlepszy || 0) - (a.najlepszy || 0));
-            
-            let position = 1;
-            for (const r of normalni) {
-                r.pozycja = position++;
-            }
-            
-            html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-                    <h3>${konkurencja || '?'} - ${kategoria || '?'} ${isZakonczone ? '🔒' : ''}</h3>
-                    <button class="medal-btn-category technical-medal" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoria}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
-                </div>
-                ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
-                ${isZakonczone && !isMedalowane ? `<div class="info-note" style="background:#d4edda;">🔒 Konkurencja została zakończona przez sędziego technicznego. Można ogłosić medalistów.</div>` : ''}
-                <table class="ranking-table"><thead>
-                    <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Najlepszy wynik</th><th>Status</th>
-                </thead><tbody>`;
-            
-            for (const r of normalni) {
-                let rowClass = '';
-                if (r.pozycja === 1) rowClass = 'position-1';
-                else if (r.pozycja === 2) rowClass = 'position-2';
-                else if (r.pozycja === 3) rowClass = 'position-3';
-                html += `<tr class="${rowClass}">
-                    <td class="position-cell"><strong>${r.pozycja}</strong></td>
-                    <td>${r.nr_startowy || '-'}</td>
-                    <td><strong>${r.imie} ${r.nazwisko}</strong></td>
-                    <td>${r.rocznik || '-'}</td>
-                    <td>${r.pelna_kategoria || '-'}</td>
-                    <td><strong>${r.najlepszy !== null ? r.najlepszy : '-'}</strong></td>
-                    <td>-</span></td>
-                </tr>`;
-            }
-            for (const r of pk) {
-                html += `<tr>
-                    <td class="position-cell">PK</td>
-                    <td>${r.nr_startowy || '-'}</td>
-                    <td>${r.imie} ${r.nazwisko}</td>
-                    <td>${r.rocznik || '-'}</td>
-                    <td>${r.pelna_kategoria || '-'}</td>
-                    <td>${r.najlepszy !== null ? r.najlepszy : '-'}</td>
-                    <td><span class="status-badge status-pk">PK</span></td>
-                </tr>`;
-            }
-            html += `</tbody></table></div>`;
-        }
-        container.innerHTML = html;
-        addMessage(`✅ Załadowano wyniki techniczne`, 'success');
-        
-        document.querySelectorAll('#technicalContainer .technical-medal').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const protocolId = btn.getAttribute('data-protocol-id');
-                const konkurencja = btn.getAttribute('data-konkurencja');
-                const kategoria = btn.getAttribute('data-kategoria');
-                await setMedalowane(protocolId, konkurencja, kategoria);
-            });
-        });
+        return '';
     }
+    
+    // Funkcja porównująca z ex aequo
+    function compareTechnicalResults(a, b) {
+        const diff = (b.najlepszy || 0) - (a.najlepszy || 0);
+        if (diff !== 0) return diff;
+        
+        const probyA = a.wszystkie_proby || [];
+        const probyB = b.wszystkie_proby || [];
+        
+        const maxDlugosc = Math.max(probyA.length, probyB.length);
+        for (let i = 0; i < maxDlugosc; i++) {
+            const valA = probyA[i] || 0;
+            const valB = probyB[i] || 0;
+            if (valB !== valA) {
+                return valB - valA;
+            }
+        }
+        
+        // Całkowity remis - ex aequo
+        return 0;
+    }
+    
+    const allTechnical = [];
+    for (const [protocolId, protocol] of Object.entries(data)) {
+        if (!protocol.zawodnicy) continue;
+        const zakonczone = protocol.zakonczone === true;
+        const zawodnicy = protocol.zawodnicy;
+        for (const [nr, z] of Object.entries(zawodnicy)) {
+            const pelnaKat = getPelnaKategoria(z.id, z.nr_startowy) || z.kategoria;
+            const najlepszy = z.najlepszy ? parseFloat(z.najlepszy) : null;
+            
+            const wszystkieProby = (z.wyniki || [])
+                .filter(v => v && v !== 'x' && !isNaN(parseFloat(v)))
+                .map(v => parseFloat(v))
+                .sort((a, b) => b - a);
+            
+            allTechnical.push({
+                nr_startowy: z.nr_startowy,
+                imie: z.imie,
+                nazwisko: z.nazwisko,
+                rocznik: z.rocznik,
+                pelna_kategoria: pelnaKat,
+                konkurencja: protocol.konkurencja,
+                kategoria_biegu: protocol.kategoria,
+                najlepszy: najlepszy,
+                wszystkie_proby: wszystkieProby,
+                pk: z.pk === true,
+                protocolId: protocolId,
+                zakonczone: zakonczone
+            });
+        }
+    }
+    
+    if (allTechnical.length === 0) {
+        container.innerHTML = '<div class="card">📭 Brak wyników technicznych.</div>';
+        return;
+    }
+    
+    const groups = {};
+    for (const r of allTechnical) {
+        const key = `${r.konkurencja}_${r.kategoria_biegu}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+    }
+    
+    let html = '';
+    for (const [key, results] of Object.entries(groups)) {
+        const [konkurencja, kategoria] = key.split('_');
+        const protocolId = results[0].protocolId;
+        const isMedalowane = medalowane[protocolId];
+        const isZakonczone = results.some(r => r.zakonczone === true);
+        
+        const normalni = results.filter(r => !r.pk);
+        const pk = results.filter(r => r.pk === true);
+        
+        normalni.sort(compareTechnicalResults);
+        pk.sort(compareTechnicalResults);
+        
+        // ===== NOWE: Przyznawanie miejsc z ex aequo =====
+        let position = 1;
+        let i = 0;
+        while (i < normalni.length) {
+            let j = i;
+            // Znajdź grupę zawodników z identycznymi wynikami
+            while (j < normalni.length - 1 && 
+                   normalni[j].najlepszy === normalni[j+1].najlepszy &&
+                   JSON.stringify(normalni[j].wszystkie_proby || []) === JSON.stringify(normalni[j+1].wszystkie_proby || [])) {
+                j++;
+            }
+            const count = j - i + 1;
+            for (let k = i; k <= j; k++) {
+                normalni[k].pozycja = position;
+                normalni[k].ex_aequo = count > 1;
+            }
+            position += count;
+            i = j + 1;
+        }
+        
+        html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                <h3>${konkurencja || '?'} - ${kategoria || '?'} ${isZakonczone ? '🔒' : ''}</h3>
+                <button class="medal-btn-category technical-medal" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoria}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
+            </div>
+            ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
+            ${isZakonczone && !isMedalowane ? `<div class="info-note" style="background:#d4edda;">🔒 Konkurencja została zakończona przez sędziego technicznego. Można ogłosić medalistów.</div>` : ''}
+            <table class="ranking-table"><thead>
+                <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Najlepszy wynik</th><th>Status</th>
+            </thead><tbody>`;
+        
+        for (const r of normalni) {
+            let rowClass = '';
+            if (r.pozycja === 1) rowClass = 'position-1';
+            else if (r.pozycja === 2) rowClass = 'position-2';
+            else if (r.pozycja === 3) rowClass = 'position-3';
+            
+            // ===== Wyświetlanie ex aequo =====
+            const pozycjaDisplay = r.ex_aequo ? `${r.pozycja}=` : `${r.pozycja}`;
+            
+            html += `<tr class="${rowClass}">
+                <td class="position-cell"><strong>${pozycjaDisplay}</strong></td>
+                <td>${r.nr_startowy || '-'}</td>
+                <td><strong>${r.imie} ${r.nazwisko}</strong></td>
+                <td>${r.rocznik || '-'}</td>
+                <td>${r.pelna_kategoria || '-'}</td>
+                <td><strong>${r.najlepszy !== null ? r.najlepszy : '-'}</strong></td>
+                <td>-</td>
+            </tr>`;
+        }
+        for (const r of pk) {
+            html += `<tr>
+                <td class="position-cell">PK</td>
+                <td>${r.nr_startowy || '-'}</td>
+                <td>${r.imie} ${r.nazwisko}</td>
+                <td>${r.rocznik || '-'}</td>
+                <td>${r.pelna_kategoria || '-'}</td>
+                <td>${r.najlepszy !== null ? r.najlepszy : '-'}</td>
+                <td><span class="status-badge status-pk">PK</span></td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>`;
+    }
+    container.innerHTML = html;
+    addMessage(`✅ Załadowano wyniki techniczne`, 'success');
+    
+    document.querySelectorAll('#technicalContainer .technical-medal').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const protocolId = btn.getAttribute('data-protocol-id');
+            const konkurencja = btn.getAttribute('data-konkurencja');
+            const kategoria = btn.getAttribute('data-kategoria');
+            await setMedalowane(protocolId, konkurencja, kategoria);
+        });
+    });
+}
     
     // ==================== ZAKŁADKI ====================
     document.querySelectorAll('.tab-btn').forEach(btn => {
