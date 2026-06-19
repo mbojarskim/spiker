@@ -41,6 +41,11 @@
         .status-dq { background: #ffebee; color: #c62828; }
         button { background: #0f3460; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; margin-top: 15px; }
         button:hover { background: #1a4a7a; }
+        .btn-info { background: #17a2b8; margin-bottom: 10px; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-warning:hover { background: #e0a800; }
         .medal-btn-category { background: #ffc107; color: #333; margin-left: 15px; margin-top: 0; }
         .medal-btn-category:disabled { background: #6c757d; color: white; cursor: not-allowed; }
         .info-note { background: #e7f3ff; border-left: 4px solid #0f3460; padding: 10px; margin: 10px 0; font-size: 0.85rem; }
@@ -53,8 +58,89 @@
         .login-box input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 40px; border: 1px solid #cbd5e1; font-size: 1rem; }
         .login-box button { width: 100%; margin-top: 15px; background: #28a745; padding: 12px; font-size: 1.1rem; color: white; border: none; border-radius: 40px; cursor: pointer; }
         .login-error { color: #dc3545; margin-top: 15px; display: none; }
-        .btn-info { background: #17a2b8; margin-bottom: 10px; }
-        @media (max-width: 768px) { .start-list-table, .ranking-table { font-size: 0.7rem; } th, td { padding: 6px; } }
+        
+        /* ===== STATYSTYKI ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px 20px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0f3460;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+        .stat-icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .stat-card.green { border-top: 4px solid #28a745; }
+        .stat-card.blue { border-top: 4px solid #0f3460; }
+        .stat-card.orange { border-top: 4px solid #ffc107; }
+        .stat-card.purple { border-top: 4px solid #6f42c1; }
+        .stat-card.red { border-top: 4px solid #dc3545; }
+        
+        .zawodnicy-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        .zawodnicy-table th {
+            background: #0f3460;
+            color: white;
+            padding: 8px 10px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+        }
+        .zawodnicy-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .zawodnicy-table tr:hover {
+            background: #f5f5f5;
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .badge-pakiet {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        .badge-pakiet-tak { background: #d4edda; color: #155724; }
+        .badge-pakiet-nie { background: #f8d7da; color: #721c24; }
+        
+        @media (max-width: 768px) {
+            .start-list-table, .ranking-table { font-size: 0.7rem; }
+            th, td { padding: 6px; }
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+            .stat-number { font-size: 1.5rem; }
+        }
     </style>
 </head>
 <body>
@@ -79,12 +165,58 @@
                     <button class="logout-btn" id="logoutBtn">Wyloguj</button>
                 </div>
             </div>
+            
+            <!-- ===== NOWA ZAKŁADKA: STATYSTYKI ===== -->
             <div class="tabs">
-                <button class="tab-btn active" data-tab="start">📋 Listy startowe</button>
+                <button class="tab-btn active" data-tab="stats">📊 Statystyki</button>
+                <button class="tab-btn" data-tab="start">📋 Listy startowe</button>
                 <button class="tab-btn" data-tab="results">🏆 Wyniki biegowe</button>
                 <button class="tab-btn" data-tab="technical">🏆 Wyniki techniczne</button>
             </div>
-            <div id="startTab" class="tab-content">
+            
+            <!-- ===== ZAKŁADKA STATYSTYKI ===== -->
+            <div id="statsTab" class="tab-content">
+                <div class="card">
+                    <h3>📊 Statystyki zawodów</h3>
+                    <button id="refreshStatsBtn" class="btn-info">🔄 Odśwież statystyki</button>
+                    <div id="statsGrid" class="stats-grid" style="margin-top: 15px;">
+                        <div class="stat-card green">
+                            <span class="stat-icon">👥</span>
+                            <div class="stat-number" id="statZawodnicy">-</div>
+                            <div class="stat-label">Zawodnicy (bez rezygnacji)</div>
+                        </div>
+                        <div class="stat-card blue">
+                            <span class="stat-icon">📦</span>
+                            <div class="stat-number" id="statPakiety">-</div>
+                            <div class="stat-label">Odebrane pakiety</div>
+                        </div>
+                        <div class="stat-card orange">
+                            <span class="stat-icon">🏃</span>
+                            <div class="stat-number" id="statBiegi">-</div>
+                            <div class="stat-label">Rozegrane biegi</div>
+                        </div>
+                        <div class="stat-card purple">
+                            <span class="stat-icon">🏅</span>
+                            <div class="stat-number" id="statTechniczne">-</div>
+                            <div class="stat-label">Konkurencje techniczne</div>
+                        </div>
+                        <div class="stat-card red">
+                            <span class="stat-icon">📋</span>
+                            <div class="stat-number" id="statProtokoly">-</div>
+                            <div class="stat-label">Wszystkie protokoły</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>📋 Zawodnicy z nadanymi numerami startowymi</h3>
+                    <button id="refreshZawodnicyBtn" class="btn-info">🔄 Odśwież listę</button>
+                    <div id="zawodnicyList" class="table-container" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+            
+            <!-- ===== ZAKŁADKA LISTY STARTOWE ===== -->
+            <div id="startTab" class="tab-content" style="display: none;">
                 <div class="card">
                     <h3>📋 Listy startowe</h3>
                     <button id="refreshStartBtn" class="btn-info">🔄 Odśwież</button>
@@ -95,6 +227,8 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- ===== ZAKŁADKA WYNIKI BIEGOWE ===== -->
             <div id="resultsTab" class="tab-content" style="display: none;">
                 <div class="card">
                     <h3>🏆 Wyniki biegowe</h3>
@@ -103,6 +237,8 @@
                     <div id="rankingContainer" style="margin-top: 20px;"></div>
                 </div>
             </div>
+            
+            <!-- ===== ZAKŁADKA WYNIKI TECHNICZNE ===== -->
             <div id="technicalTab" class="tab-content" style="display: none;">
                 <div class="card">
                     <h3>🏆 Wyniki techniczne (skok, rzut itp.)</h3>
@@ -111,6 +247,7 @@
                     <div id="technicalContainer" style="margin-top: 20px;"></div>
                 </div>
             </div>
+            
             <div id="messages"></div>
         </div>
     </div>
@@ -148,9 +285,11 @@
                 document.getElementById('userEmail').innerText = user.email;
                 addMessage(`✅ Zalogowano jako: ${user.email}`, 'success');
                 loadMedalowane();
+                loadStats();
+                loadZawodnicyList();
                 loadStartProtocols();
-                loadRanking(); // biegi
-                loadTechnicalRanking(); // techniczne
+                loadRanking();
+                loadTechnicalRanking();
             } else {
                 document.getElementById('mainContent').style.display = 'none';
                 document.getElementById('loginOverlay').style.display = 'flex';
@@ -178,7 +317,18 @@
     function addMessage(msg, type) {
         const container = document.getElementById('messages');
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type}`;
+        const colors = {
+            success: '#d4edda',
+            error: '#f8d7da',
+            warning: '#fff3cd'
+        };
+        alertDiv.style.cssText = `
+            background: ${colors[type] || '#e7f3ff'};
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#ffc107'};
+        `;
         alertDiv.innerHTML = msg;
         container.appendChild(alertDiv);
         setTimeout(() => alertDiv.remove(), 4000);
@@ -203,7 +353,137 @@
         loadTechnicalRanking();
     }
 
-    // ==================== LISTY STARTOWE (bez zmian) ====================
+    // ==================== STATYSTYKI ====================
+    async function loadStats() {
+        try {
+            // Pobierz zawodników
+            const zawodnicySnap = await database.ref('zawodnicy').once('value');
+            const zawodnicyData = zawodnicySnap.val() || {};
+            
+            // Pobierz protokoły biegowe
+            const protokolySnap = await database.ref('protokoly').once('value');
+            const protokolyData = protokolySnap.val() || {};
+            
+            // Pobierz protokoły techniczne
+            const techniczneSnap = await database.ref('protokoly_techniczne').once('value');
+            const techniczneData = techniczneSnap.val() || {};
+            
+            // STATYSTYKI
+            let liczbaZawodnikow = 0;
+            let odebranePakiety = 0;
+            
+            for (const [id, z] of Object.entries(zawodnicyData)) {
+                if (z.rezygnacja !== 'TRUE' && z.rezygnacja !== true) {
+                    liczbaZawodnikow++;
+                    if (z.pakiet_odebrany === 'TAK' || z.pakiet_odebrany === true) {
+                        odebranePakiety++;
+                    }
+                }
+            }
+            
+            const liczbaBiegow = Object.keys(protokolyData).length;
+            const liczbaTechnicznych = Object.keys(techniczneData).length;
+            const liczbaProtokolow = liczbaBiegow + liczbaTechnicznych;
+            
+            // Aktualizuj UI
+            document.getElementById('statZawodnicy').textContent = liczbaZawodnikow;
+            document.getElementById('statPakiety').textContent = odebranePakiety;
+            document.getElementById('statBiegi').textContent = liczbaBiegow;
+            document.getElementById('statTechniczne').textContent = liczbaTechnicznych;
+            document.getElementById('statProtokoly').textContent = liczbaProtokolow;
+            
+            addMessage(`✅ Statystyki: ${liczbaZawodnikow} zawodników, ${odebranePakiety} pakietów, ${liczbaBiegow} biegów, ${liczbaTechnicznych} technicznych`, 'success');
+            
+        } catch (err) {
+            console.error('Błąd statystyk:', err);
+            addMessage(`❌ Błąd ładowania statystyk: ${err.message}`, 'error');
+        }
+    }
+
+    // ==================== LISTA ZAWODNIKÓW Z NUMERAMI ====================
+    async function loadZawodnicyList() {
+        const container = document.getElementById('zawodnicyList');
+        if (!container) return;
+        container.innerHTML = '<div class="loading">⏳ Ładowanie zawodników...</div>';
+        
+        try {
+            const snapshot = await database.ref('zawodnicy').once('value');
+            const data = snapshot.val() || {};
+            
+            // Filtruj: tylko zawodnicy z numerem startowym i bez rezygnacji
+            const zawodnicy = [];
+            for (const [id, z] of Object.entries(data)) {
+                if (z.rezygnacja === 'TRUE' || z.rezygnacja === true) continue;
+                if (z.nr_startowy && z.nr_startowy !== '') {
+                    zawodnicy.push({
+                        id: id,
+                        nr_startowy: z.nr_startowy,
+                        imie: z.imie || '',
+                        nazwisko: z.nazwisko || '',
+                        rocznik: z.rocznik || '',
+                        pelna_kategoria: z.pelna_kategoria || z.kategoria_wiekowa || '',
+                        konkurencja1: z.konkurencja1 || '',
+                        konkurencja2: z.konkurencja2 || '',
+                        pakiet_odebrany: z.pakiet_odebrany === 'TAK' || z.pakiet_odebrany === true
+                    });
+                }
+            }
+            
+            // Sortuj po numerze startowym
+            zawodnicy.sort((a, b) => parseInt(a.nr_startowy) - parseInt(b.nr_startowy));
+            
+            if (zawodnicy.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">📭 Brak zawodników z nadanymi numerami startowymi.</div>';
+                return;
+            }
+            
+            let html = `
+                <table class="zawodnicy-table">
+                    <thead>
+                        <tr>
+                            <th>Nr</th>
+                            <th>Imię</th>
+                            <th>Nazwisko</th>
+                            <th>Rocznik</th>
+                            <th>Kategoria</th>
+                            <th>Konkurencja 1</th>
+                            <th>Konkurencja 2</th>
+                            <th>Pakiet</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const z of zawodnicy) {
+                const pakietBadge = z.pakiet_odebrany 
+                    ? '<span class="badge-pakiet badge-pakiet-tak">✅ Odebrany</span>'
+                    : '<span class="badge-pakiet badge-pakiet-nie">❌ Nie</span>';
+                
+                html += `
+                    <tr>
+                        <td><strong>${z.nr_startowy}</strong></td>
+                        <td>${z.imie}</td>
+                        <td>${z.nazwisko}</td>
+                        <td>${z.rocznik || '-'}</td>
+                        <td>${z.pelna_kategoria || '-'}</td>
+                        <td>${z.konkurencja1 || '-'}</td>
+                        <td>${z.konkurencja2 || '-'}</td>
+                        <td>${pakietBadge}</td>
+                    </tr>
+                `;
+            }
+            
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+            addMessage(`✅ Załadowano ${zawodnicy.length} zawodników z numerami`, 'success');
+            
+        } catch (err) {
+            container.innerHTML = `<div class="error-item">❌ Błąd: ${err.message}</div>`;
+            addMessage(`❌ Błąd ładowania zawodników: ${err.message}`, 'error');
+        }
+    }
+
+    // ==================== LISTY STARTOWE ====================
     async function loadStartProtocols() {
         const container = document.getElementById('startProtocolsList');
         if (!container) return;
@@ -266,443 +546,425 @@
         document.getElementById('startListContent').style.display = 'block';
     }
 
-    // ==================== WYNIKI BIEGOWE (bez zmian) ====================
+    // ==================== WYNIKI BIEGOWE (z ex aequo) ====================
     async function loadRanking() {
-    const container = document.getElementById('rankingContainer');
-    if (!container) return;
-    container.innerHTML = '<div class="loading">⏳ Ładowanie wyników biegowych...</div>';
-    
-    const snapshot = await database.ref('protokoly').once('value');
-    const data = snapshot.val();
-    if (!data || Object.keys(data).length === 0) {
-        container.innerHTML = '<div class="card">📭 Brak protokołów biegowych z wynikami.</div>';
-        return;
-    }
-    
-    const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
-    const zawodnicyData = zawodnicySnapshot.val() || {};
-    function getPelnaKategoria(zawodnikId, nrStartowy) {
-        if (zawodnikId && zawodnicyData[zawodnikId]) {
-            const z = zawodnicyData[zawodnikId];
-            return z.pelna_kategoria || z.kategoria_wiekowa || '';
+        const container = document.getElementById('rankingContainer');
+        if (!container) return;
+        container.innerHTML = '<div class="loading">⏳ Ładowanie wyników biegowych...</div>';
+        
+        const snapshot = await database.ref('protokoly').once('value');
+        const data = snapshot.val();
+        if (!data || Object.keys(data).length === 0) {
+            container.innerHTML = '<div class="card">📭 Brak protokołów biegowych z wynikami.</div>';
+            return;
         }
-        if (nrStartowy) {
-            for (const [id, z] of Object.entries(zawodnicyData)) {
-                if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
-                    return z.pelna_kategoria || z.kategoria_wiekowa || '';
+        
+        const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
+        const zawodnicyData = zawodnicySnapshot.val() || {};
+        function getPelnaKategoria(zawodnikId, nrStartowy) {
+            if (zawodnikId && zawodnicyData[zawodnikId]) {
+                const z = zawodnicyData[zawodnikId];
+                return z.pelna_kategoria || z.kategoria_wiekowa || '';
+            }
+            if (nrStartowy) {
+                for (const [id, z] of Object.entries(zawodnicyData)) {
+                    if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
+                        return z.pelna_kategoria || z.kategoria_wiekowa || '';
+                    }
                 }
             }
+            return '';
         }
-        return '';
-    }
-    
-    const allResults = [];
-    for (const [protocolId, protocol] of Object.entries(data)) {
-        if (!protocol.wyniki || !protocol.tory) continue;
-        const tory = protocol.tory, wyniki = protocol.wyniki;
-        for (let i = 0; i < tory.length && i < wyniki.length; i++) {
-            const tor = tory[i], wynik = wyniki[i], zawodnik = tor.zawodnik || {};
-            if (wynik.status === 'DNS') continue;
-            const pelnaKategoria = getPelnaKategoria(zawodnik.id, tor.nr_startowy);
-            allResults.push({
-                id: zawodnik.id,
-                nr_startowy: tor.nr_startowy || '',
-                imie: zawodnik.imie || '',
-                nazwisko: zawodnik.nazwisko || '',
-                rocznik: zawodnik.rocznik || '',
-                pelna_kategoria: pelnaKategoria,
-                kategoria_biegu: protocol.kategoria || '',
-                konkurencja: protocol.konkurencja || '',
-                numer_biegu: protocol.numer_biegu || '',
-                status: wynik.status || null,
-                czas_biegu_format: wynik.czas_biegu_format || '',
-                czas_biegu_sekundy: wynik.czas_biegu_sekundy || null,
-                protocolId: protocolId,
-                zakonczone: protocol.zakonczone === true
+        
+        const allResults = [];
+        for (const [protocolId, protocol] of Object.entries(data)) {
+            if (!protocol.wyniki || !protocol.tory) continue;
+            const tory = protocol.tory, wyniki = protocol.wyniki;
+            for (let i = 0; i < tory.length && i < wyniki.length; i++) {
+                const tor = tory[i], wynik = wyniki[i], zawodnik = tor.zawodnik || {};
+                if (wynik.status === 'DNS') continue;
+                const pelnaKategoria = getPelnaKategoria(zawodnik.id, tor.nr_startowy);
+                allResults.push({
+                    id: zawodnik.id,
+                    nr_startowy: tor.nr_startowy || '',
+                    imie: zawodnik.imie || '',
+                    nazwisko: zawodnik.nazwisko || '',
+                    rocznik: zawodnik.rocznik || '',
+                    pelna_kategoria: pelnaKategoria,
+                    kategoria_biegu: protocol.kategoria || '',
+                    konkurencja: protocol.konkurencja || '',
+                    numer_biegu: protocol.numer_biegu || '',
+                    status: wynik.status || null,
+                    czas_biegu_format: wynik.czas_biegu_format || '',
+                    czas_biegu_sekundy: wynik.czas_biegu_sekundy || null,
+                    protocolId: protocolId,
+                    zakonczone: protocol.zakonczone === true
+                });
+            }
+        }
+        if (allResults.length === 0) {
+            container.innerHTML = '<div class="card">📭 Brak wyników biegowych.</div>';
+            return;
+        }
+        
+        const nrStartowyCount = {};
+        for (const r of allResults) {
+            if (!r.status || r.status === '') {
+                if (r.nr_startowy) nrStartowyCount[r.nr_startowy] = (nrStartowyCount[r.nr_startowy] || 0) + 1;
+            }
+        }
+        
+        const groups = {};
+        for (const r of allResults) {
+            const key = `${r.konkurencja}_${r.kategoria_biegu}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+        }
+        
+        let html = '';
+        for (const [key, results] of Object.entries(groups)) {
+            const [konkurencja, kategoriaBiegu] = key.split('_');
+            const protocolId = results[0].protocolId;
+            const isMedalowane = medalowane[protocolId];
+            const isZakonczone = results.some(r => r.zakonczone === true);
+            
+            const normalni = results.filter(r => !r.status || r.status === '');
+            const pk = results.filter(r => r.status === 'PK');
+            const inni = results.filter(r => r.status && r.status !== 'PK');
+            
+            // Sortowanie normalnych
+            normalni.sort((a, b) => {
+                const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
+                const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
+                return czasA - czasB;
             });
-        }
-    }
-    if (allResults.length === 0) {
-        container.innerHTML = '<div class="card">📭 Brak wyników biegowych.</div>';
-        return;
-    }
-    
-    const nrStartowyCount = {};
-    for (const r of allResults) {
-        if (!r.status || r.status === '') {
-            if (r.nr_startowy) nrStartowyCount[r.nr_startowy] = (nrStartowyCount[r.nr_startowy] || 0) + 1;
-        }
-    }
-    
-    const groups = {};
-    for (const r of allResults) {
-        const key = `${r.konkurencja}_${r.kategoria_biegu}`;
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(r);
-    }
-    
-    let html = '';
-    for (const [key, results] of Object.entries(groups)) {
-        const [konkurencja, kategoriaBiegu] = key.split('_');
-        const protocolId = results[0].protocolId;
-        const isMedalowane = medalowane[protocolId];
-        const isZakonczone = results.some(r => r.zakonczone === true);
-        
-        const normalni = results.filter(r => !r.status || r.status === '');
-        const pk = results.filter(r => r.status === 'PK');
-        const inni = results.filter(r => r.status && r.status !== 'PK');
-        
-        // ============================================================
-        // SORTOWANIE NORMALNYCH (od najlepszego czasu)
-        // ============================================================
-        normalni.sort((a, b) => {
-            const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
-            const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
-            return czasA - czasB;
-        });
-        
-        // ============================================================
-        // PRZYZNAWANIE MIEJSC Z EX AEQUO
-        // ============================================================
-        let position = 1;
-        let i = 0;
-        while (i < normalni.length) {
-            let j = i;
-            // Znajdź grupę zawodników z identycznymi czasami
-            while (j < normalni.length - 1 && 
-                   normalni[j].czas_biegu_sekundy === normalni[j+1].czas_biegu_sekundy &&
-                   normalni[j].czas_biegu_sekundy !== null) {
-                j++;
-            }
-            const countInGroup = j - i + 1;
-            const isExAequo = countInGroup > 1;
             
-            for (let k = i; k <= j; k++) {
-                normalni[k].pozycja = position;
-                normalni[k].ex_aequo = isExAequo;
+            // Przyznawanie miejsc z ex aequo
+            let position = 1;
+            let i = 0;
+            while (i < normalni.length) {
+                let j = i;
+                while (j < normalni.length - 1 && 
+                       normalni[j].czas_biegu_sekundy === normalni[j+1].czas_biegu_sekundy &&
+                       normalni[j].czas_biegu_sekundy !== null) {
+                    j++;
+                }
+                const countInGroup = j - i + 1;
+                const isExAequo = countInGroup > 1;
+                
+                for (let k = i; k <= j; k++) {
+                    normalni[k].pozycja = position;
+                    normalni[k].ex_aequo = isExAequo;
+                }
+                position += countInGroup;
+                i = j + 1;
             }
             
-            position += countInGroup;
-            i = j + 1;
-        }
-        
-        // PK sortowane osobno
-        pk.sort((a, b) => {
-            const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
-            const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
-            return czasA - czasB;
-        });
-        
-        // Inni (DNF, DQ, DNS)
-        const statusOrder = { 'DNF': 0, 'DQ': 1, 'DNS': 2 };
-        inni.sort((a, b) => {
-            const orderA = statusOrder[a.status] || 3;
-            const orderB = statusOrder[b.status] || 3;
-            if (orderA !== orderB) return orderA - orderB;
-            const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
-            const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
-            return czasA - czasB;
-        });
-        
-        html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-                <h3>${konkurencja || '?'} - ${kategoriaBiegu || '?'} ${isZakonczone ? '🔒' : ''}</h3>
-                <button class="medal-btn-category" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoriaBiegu}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
-            </div>
-            ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
-            ${isZakonczone && !isMedalowane ? `<div class="info-note" style="background:#d4edda;">🔒 Konkurencja została zakończona. Można ogłosić medalistów.</div>` : ''}
-            <table class="ranking-table"><thead>
-                <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Czas</th><th>Bieg</th><th>Status</th>
-            </thead><tbody>`;
-        
-        // ============================================================
-        // NORMALNI (z ex aequo)
-        // ============================================================
-        for (const r of normalni) {
-            const isDuplicate = nrStartowyCount[r.nr_startowy] > 2;
-            const nrStyle = isDuplicate ? 'style="background:#fff3cd; font-weight:bold;"' : '';
-            let rowClass = '';
-            if (r.pozycja === 1) rowClass = 'position-1';
-            else if (r.pozycja === 2) rowClass = 'position-2';
-            else if (r.pozycja === 3) rowClass = 'position-3';
+            // PK sortowane
+            pk.sort((a, b) => {
+                const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
+                const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
+                return czasA - czasB;
+            });
             
-            // Wyświetlanie pozycji z ex aequo
-            let pozycjaDisplay = r.pozycja;
-            if (r.ex_aequo) {
-                pozycjaDisplay = r.pozycja + '=';
+            // Inni
+            const statusOrder = { 'DNF': 0, 'DQ': 1, 'DNS': 2 };
+            inni.sort((a, b) => {
+                const orderA = statusOrder[a.status] || 3;
+                const orderB = statusOrder[b.status] || 3;
+                if (orderA !== orderB) return orderA - orderB;
+                const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
+                const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
+                return czasA - czasB;
+            });
+            
+            html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                    <h3>${konkurencja || '?'} - ${kategoriaBiegu || '?'} ${isZakonczone ? '🔒' : ''}</h3>
+                    <button class="medal-btn-category" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoriaBiegu}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
+                </div>
+                ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
+                ${isZakonczone && !isMedalowane ? `<div class="info-note" style="background:#d4edda;">🔒 Konkurencja została zakończona. Można ogłosić medalistów.</div>` : ''}
+                <table class="ranking-table"><thead>
+                    <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Czas</th><th>Bieg</th><th>Status</th>
+                </thead><tbody>`;
+            
+            for (const r of normalni) {
+                const isDuplicate = nrStartowyCount[r.nr_startowy] > 2;
+                const nrStyle = isDuplicate ? 'style="background:#fff3cd; font-weight:bold;"' : '';
+                let rowClass = '';
+                if (r.pozycja === 1) rowClass = 'position-1';
+                else if (r.pozycja === 2) rowClass = 'position-2';
+                else if (r.pozycja === 3) rowClass = 'position-3';
+                
+                let pozycjaDisplay = r.pozycja;
+                if (r.ex_aequo) {
+                    pozycjaDisplay = r.pozycja + '=';
+                }
+                
+                html += `<tr class="${rowClass}">
+                    <td class="position-cell"><strong>${pozycjaDisplay}</strong></td>
+                    <td ${nrStyle}>${r.nr_startowy || '-'}${isDuplicate ? ' ⚠️' : ''}</td>
+                    <td><strong>${r.imie} ${r.nazwisko}</strong></td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.pelna_kategoria || '-'}</td>
+                    <td><strong>${r.czas_biegu_format || '-'}</strong></td>
+                    <td>${r.numer_biegu || '-'}</td>
+                    <td>-</td>
+                </tr>`;
             }
             
-            html += `<tr class="${rowClass}">
-                <td class="position-cell"><strong>${pozycjaDisplay}</strong></td>
-                <td ${nrStyle}>${r.nr_startowy || '-'}${isDuplicate ? ' ⚠️' : ''}</td>
-                <td><strong>${r.imie} ${r.nazwisko}</strong></td>
-                <td>${r.rocznik || '-'}</td>
-                <td>${r.pelna_kategoria || '-'}</td>
-                <td><strong>${r.czas_biegu_format || '-'}</strong></td>
-                <td>${r.numer_biegu || '-'}</td>
-                <td>-</td>
-            </tr>`;
+            for (const r of pk) {
+                html += `<tr>
+                    <td class="position-cell">PK</td>
+                    <td>${r.nr_startowy || '-'}</td>
+                    <td>${r.imie} ${r.nazwisko}</td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.pelna_kategoria || '-'}</td>
+                    <td>${r.czas_biegu_format || '-'}</td>
+                    <td>${r.numer_biegu || '-'}</td>
+                    <td><span class="status-badge status-pk">PK</span></td>
+                </tr>`;
+            }
+            
+            for (const r of inni) {
+                let statusClass = '';
+                if (r.status === 'DNF') statusClass = 'status-dnf';
+                else if (r.status === 'DQ') statusClass = 'status-dq';
+                else if (r.status === 'DNS') statusClass = 'status-dns';
+                html += `<tr>
+                    <td class="position-cell">${r.status}</td>
+                    <td>${r.nr_startowy || '-'}</td>
+                    <td>${r.imie} ${r.nazwisko}</td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.pelna_kategoria || '-'}</td>
+                    <td>${r.czas_biegu_format || '-'}</td>
+                    <td>${r.numer_biegu || '-'}</td>
+                    <td><span class="status-badge ${statusClass}">${r.status}</span></td>
+                </tr>`;
+            }
+            html += `</tbody></table></div>`;
         }
+        container.innerHTML = html;
+        addMessage(`✅ Załadowano ${allResults.length} wyników biegowych`, 'success');
         
-        // ============================================================
-        // PK
-        // ============================================================
-        for (const r of pk) {
-            html += `<tr>
-                <td class="position-cell">PK</td>
-                <td>${r.nr_startowy || '-'}</td>
-                <td>${r.imie} ${r.nazwisko}</td>
-                <td>${r.rocznik || '-'}</td>
-                <td>${r.pelna_kategoria || '-'}</td>
-                <td>${r.czas_biegu_format || '-'}</td>
-                <td>${r.numer_biegu || '-'}</td>
-                <td><span class="status-badge status-pk">PK</span></td>
-            </tr>`;
-        }
-        
-        // ============================================================
-        // INNI (DNF, DQ, DNS)
-        // ============================================================
-        for (const r of inni) {
-            let statusClass = '';
-            if (r.status === 'DNF') statusClass = 'status-dnf';
-            else if (r.status === 'DQ') statusClass = 'status-dq';
-            else if (r.status === 'DNS') statusClass = 'status-dns';
-            html += `<tr>
-                <td class="position-cell">${r.status}</td>
-                <td>${r.nr_startowy || '-'}</td>
-                <td>${r.imie} ${r.nazwisko}</td>
-                <td>${r.rocznik || '-'}</td>
-                <td>${r.pelna_kategoria || '-'}</td>
-                <td>${r.czas_biegu_format || '-'}</td>
-                <td>${r.numer_biegu || '-'}</td>
-                <td><span class="status-badge ${statusClass}">${r.status}</span></td>
-            </tr>`;
-        }
-        html += `</tbody></table></div>`;
-    }
-    container.innerHTML = html;
-    addMessage(`✅ Załadowano ${allResults.length} wyników biegowych`, 'success');
-    
-    document.querySelectorAll('#rankingContainer .medal-btn-category').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const protocolId = btn.getAttribute('data-protocol-id');
-            const konkurencja = btn.getAttribute('data-konkurencja');
-            const kategoria = btn.getAttribute('data-kategoria');
-            await setMedalowane(protocolId, konkurencja, kategoria);
+        document.querySelectorAll('#rankingContainer .medal-btn-category').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const protocolId = btn.getAttribute('data-protocol-id');
+                const konkurencja = btn.getAttribute('data-konkurencja');
+                const kategoria = btn.getAttribute('data-kategoria');
+                await setMedalowane(protocolId, konkurencja, kategoria);
+            });
         });
-    });
-}
+    }
 
-    // ==================== WYNIKI TECHNICZNE (z informacją o zakończeniu, ale bez blokady medalowania) ====================
-   async function loadTechnicalRanking() {
-    const container = document.getElementById('technicalContainer');
-    if (!container) return;
-    container.innerHTML = '<div class="loading">⏳ Ładowanie wyników technicznych...</div>';
-    
-    const snapshot = await database.ref('protokoly_techniczne').once('value');
-    const data = snapshot.val();
-    if (!data || Object.keys(data).length === 0) {
-        container.innerHTML = '<div class="card">📭 Brak protokołów technicznych.</div>';
-        return;
-    }
-    
-    const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
-    const zawodnicyData = zawodnicySnapshot.val() || {};
-    function getPelnaKategoria(zawodnikId, nrStartowy) {
-        if (zawodnikId && zawodnicyData[zawodnikId]) {
-            const z = zawodnicyData[zawodnikId];
-            return z.pelna_kategoria || z.kategoria_wiekowa || '';
+    // ==================== WYNIKI TECHNICZNE ====================
+    async function loadTechnicalRanking() {
+        const container = document.getElementById('technicalContainer');
+        if (!container) return;
+        container.innerHTML = '<div class="loading">⏳ Ładowanie wyników technicznych...</div>';
+        
+        const snapshot = await database.ref('protokoly_techniczne').once('value');
+        const data = snapshot.val();
+        if (!data || Object.keys(data).length === 0) {
+            container.innerHTML = '<div class="card">📭 Brak protokołów technicznych.</div>';
+            return;
         }
-        if (nrStartowy) {
-            for (const [id, z] of Object.entries(zawodnicyData)) {
-                if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
-                    return z.pelna_kategoria || z.kategoria_wiekowa || '';
+        
+        const zawodnicySnapshot = await database.ref('zawodnicy').once('value');
+        const zawodnicyData = zawodnicySnapshot.val() || {};
+        function getPelnaKategoria(zawodnikId, nrStartowy) {
+            if (zawodnikId && zawodnicyData[zawodnikId]) {
+                const z = zawodnicyData[zawodnikId];
+                return z.pelna_kategoria || z.kategoria_wiekowa || '';
+            }
+            if (nrStartowy) {
+                for (const [id, z] of Object.entries(zawodnicyData)) {
+                    if (z.nr_startowy === nrStartowy || z.id === nrStartowy) {
+                        return z.pelna_kategoria || z.kategoria_wiekowa || '';
+                    }
                 }
             }
+            return '';
         }
-        return '';
-    }
-    
-    // Funkcja porównująca z ex aequo
-    function compareTechnicalResults(a, b) {
-        const diff = (b.najlepszy || 0) - (a.najlepszy || 0);
-        if (diff !== 0) return diff;
         
-        const probyA = a.wszystkie_proby || [];
-        const probyB = b.wszystkie_proby || [];
+        function compareTechnicalResults(a, b) {
+            const diff = (b.najlepszy || 0) - (a.najlepszy || 0);
+            if (diff !== 0) return diff;
+            
+            const probyA = a.wszystkie_proby || [];
+            const probyB = b.wszystkie_proby || [];
+            const maxDlugosc = Math.max(probyA.length, probyB.length);
+            for (let i = 0; i < maxDlugosc; i++) {
+                const valA = probyA[i] || 0;
+                const valB = probyB[i] || 0;
+                if (valB !== valA) return valB - valA;
+            }
+            return 0;
+        }
         
-        const maxDlugosc = Math.max(probyA.length, probyB.length);
-        for (let i = 0; i < maxDlugosc; i++) {
-            const valA = probyA[i] || 0;
-            const valB = probyB[i] || 0;
-            if (valB !== valA) {
-                return valB - valA;
+        const allTechnical = [];
+        for (const [protocolId, protocol] of Object.entries(data)) {
+            if (!protocol.zawodnicy) continue;
+            const zakonczone = protocol.zakonczone === true;
+            for (const [nr, z] of Object.entries(protocol.zawodnicy)) {
+                const pelnaKat = getPelnaKategoria(z.id, z.nr_startowy) || z.kategoria;
+                const najlepszy = z.najlepszy ? parseFloat(z.najlepszy) : null;
+                const wszystkieProby = (z.wyniki || [])
+                    .filter(v => v && v !== 'x' && !isNaN(parseFloat(v)))
+                    .map(v => parseFloat(v))
+                    .sort((a, b) => b - a);
+                
+                allTechnical.push({
+                    nr_startowy: z.nr_startowy,
+                    imie: z.imie,
+                    nazwisko: z.nazwisko,
+                    rocznik: z.rocznik,
+                    pelna_kategoria: pelnaKat,
+                    konkurencja: protocol.konkurencja,
+                    kategoria_biegu: protocol.kategoria,
+                    najlepszy: najlepszy,
+                    wszystkie_proby: wszystkieProby,
+                    pk: z.pk === true,
+                    protocolId: protocolId,
+                    zakonczone: zakonczone
+                });
             }
         }
         
-        // Całkowity remis - ex aequo
-        return 0;
-    }
-    
-    const allTechnical = [];
-    for (const [protocolId, protocol] of Object.entries(data)) {
-        if (!protocol.zawodnicy) continue;
-        const zakonczone = protocol.zakonczone === true;
-        const zawodnicy = protocol.zawodnicy;
-        for (const [nr, z] of Object.entries(zawodnicy)) {
-            const pelnaKat = getPelnaKategoria(z.id, z.nr_startowy) || z.kategoria;
-            const najlepszy = z.najlepszy ? parseFloat(z.najlepszy) : null;
+        if (allTechnical.length === 0) {
+            container.innerHTML = '<div class="card">📭 Brak wyników technicznych.</div>';
+            return;
+        }
+        
+        const groups = {};
+        for (const r of allTechnical) {
+            const key = `${r.konkurencja}_${r.kategoria_biegu}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+        }
+        
+        let html = '';
+        for (const [key, results] of Object.entries(groups)) {
+            const [konkurencja, kategoria] = key.split('_');
+            const protocolId = results[0].protocolId;
+            const isMedalowane = medalowane[protocolId];
+            const isZakonczone = results.some(r => r.zakonczone === true);
             
-            const wszystkieProby = (z.wyniki || [])
-                .filter(v => v && v !== 'x' && !isNaN(parseFloat(v)))
-                .map(v => parseFloat(v))
-                .sort((a, b) => b - a);
+            const normalni = results.filter(r => !r.pk);
+            const pk = results.filter(r => r.pk === true);
             
-            allTechnical.push({
-                nr_startowy: z.nr_startowy,
-                imie: z.imie,
-                nazwisko: z.nazwisko,
-                rocznik: z.rocznik,
-                pelna_kategoria: pelnaKat,
-                konkurencja: protocol.konkurencja,
-                kategoria_biegu: protocol.kategoria,
-                najlepszy: najlepszy,
-                wszystkie_proby: wszystkieProby,
-                pk: z.pk === true,
-                protocolId: protocolId,
-                zakonczone: zakonczone
+            normalni.sort(compareTechnicalResults);
+            pk.sort(compareTechnicalResults);
+            
+            // Ex aequo dla technicznych
+            let position = 1;
+            let i = 0;
+            while (i < normalni.length) {
+                let j = i;
+                while (j < normalni.length - 1 && 
+                       normalni[j].najlepszy === normalni[j+1].najlepszy &&
+                       JSON.stringify(normalni[j].wszystkie_proby || []) === JSON.stringify(normalni[j+1].wszystkie_proby || [])) {
+                    j++;
+                }
+                const count = j - i + 1;
+                for (let k = i; k <= j; k++) {
+                    normalni[k].pozycja = position;
+                    normalni[k].ex_aequo = count > 1;
+                }
+                position += count;
+                i = j + 1;
+            }
+            
+            html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                    <h3>${konkurencja || '?'} - ${kategoria || '?'} ${isZakonczone ? '🔒' : ''}</h3>
+                    <button class="medal-btn-category technical-medal" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoria}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
+                </div>
+                ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
+                ${isZakonczone && !isMedalowane ? `<div class="info-note" style="background:#d4edda;">🔒 Konkurencja została zakończona przez sędziego technicznego. Można ogłosić medalistów.</div>` : ''}
+                <table class="ranking-table"><thead>
+                    <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Najlepszy wynik</th><th>Status</th>
+                </thead><tbody>`;
+            
+            for (const r of normalni) {
+                let rowClass = '';
+                if (r.pozycja === 1) rowClass = 'position-1';
+                else if (r.pozycja === 2) rowClass = 'position-2';
+                else if (r.pozycja === 3) rowClass = 'position-3';
+                
+                const pozycjaDisplay = r.ex_aequo ? `${r.pozycja}=` : `${r.pozycja}`;
+                
+                html += `<tr class="${rowClass}">
+                    <td class="position-cell"><strong>${pozycjaDisplay}</strong></td>
+                    <td>${r.nr_startowy || '-'}</td>
+                    <td><strong>${r.imie} ${r.nazwisko}</strong></td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.pelna_kategoria || '-'}</td>
+                    <td><strong>${r.najlepszy !== null ? r.najlepszy : '-'}</strong></td>
+                    <td>-</td>
+                </tr>`;
+            }
+            for (const r of pk) {
+                html += `<tr>
+                    <td class="position-cell">PK</td>
+                    <td>${r.nr_startowy || '-'}</td>
+                    <td>${r.imie} ${r.nazwisko}</td>
+                    <td>${r.rocznik || '-'}</td>
+                    <td>${r.pelna_kategoria || '-'}</td>
+                    <td>${r.najlepszy !== null ? r.najlepszy : '-'}</td>
+                    <td><span class="status-badge status-pk">PK</span></td>
+                </tr>`;
+            }
+            html += `</tbody></table></div>`;
+        }
+        container.innerHTML = html;
+        addMessage(`✅ Załadowano wyniki techniczne`, 'success');
+        
+        document.querySelectorAll('#technicalContainer .technical-medal').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const protocolId = btn.getAttribute('data-protocol-id');
+                const konkurencja = btn.getAttribute('data-konkurencja');
+                const kategoria = btn.getAttribute('data-kategoria');
+                await setMedalowane(protocolId, konkurencja, kategoria);
             });
-        }
-    }
-    
-    if (allTechnical.length === 0) {
-        container.innerHTML = '<div class="card">📭 Brak wyników technicznych.</div>';
-        return;
-    }
-    
-    const groups = {};
-    for (const r of allTechnical) {
-        const key = `${r.konkurencja}_${r.kategoria_biegu}`;
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(r);
-    }
-    
-    let html = '';
-    for (const [key, results] of Object.entries(groups)) {
-        const [konkurencja, kategoria] = key.split('_');
-        const protocolId = results[0].protocolId;
-        const isMedalowane = medalowane[protocolId];
-        const isZakonczone = results.some(r => r.zakonczone === true);
-        
-        const normalni = results.filter(r => !r.pk);
-        const pk = results.filter(r => r.pk === true);
-        
-        normalni.sort(compareTechnicalResults);
-        pk.sort(compareTechnicalResults);
-        
-        // ===== NOWE: Przyznawanie miejsc z ex aequo =====
-        let position = 1;
-        let i = 0;
-        while (i < normalni.length) {
-            let j = i;
-            // Znajdź grupę zawodników z identycznymi wynikami
-            while (j < normalni.length - 1 && 
-                   normalni[j].najlepszy === normalni[j+1].najlepszy &&
-                   JSON.stringify(normalni[j].wszystkie_proby || []) === JSON.stringify(normalni[j+1].wszystkie_proby || [])) {
-                j++;
-            }
-            const count = j - i + 1;
-            for (let k = i; k <= j; k++) {
-                normalni[k].pozycja = position;
-                normalni[k].ex_aequo = count > 1;
-            }
-            position += count;
-            i = j + 1;
-        }
-        
-        html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-                <h3>${konkurencja || '?'} - ${kategoria || '?'} ${isZakonczone ? '🔒' : ''}</h3>
-                <button class="medal-btn-category technical-medal" data-protocol-id="${protocolId}" data-konkurencja="${konkurencja}" data-kategoria="${kategoria}" ${isMedalowane ? 'disabled' : ''}>🏅 ${isMedalowane ? 'Medalowano' : 'Ogłoś medalistów'}</button>
-            </div>
-            ${isMedalowane ? `<div class="info-note">✅ Medalowani zostali ogłoszeni dnia ${new Date(medalowane[protocolId].data_medalowania).toLocaleString()}</div>` : ''}
-            ${isZakonczone && !isMedalowane ? `<div class="info-note" style="background:#d4edda;">🔒 Konkurencja została zakończona przez sędziego technicznego. Można ogłosić medalistów.</div>` : ''}
-            <table class="ranking-table"><thead>
-                <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Najlepszy wynik</th><th>Status</th>
-            </thead><tbody>`;
-        
-        for (const r of normalni) {
-            let rowClass = '';
-            if (r.pozycja === 1) rowClass = 'position-1';
-            else if (r.pozycja === 2) rowClass = 'position-2';
-            else if (r.pozycja === 3) rowClass = 'position-3';
-            
-            // ===== Wyświetlanie ex aequo =====
-            const pozycjaDisplay = r.ex_aequo ? `${r.pozycja}=` : `${r.pozycja}`;
-            
-            html += `<tr class="${rowClass}">
-                <td class="position-cell"><strong>${pozycjaDisplay}</strong></td>
-                <td>${r.nr_startowy || '-'}</td>
-                <td><strong>${r.imie} ${r.nazwisko}</strong></td>
-                <td>${r.rocznik || '-'}</td>
-                <td>${r.pelna_kategoria || '-'}</td>
-                <td><strong>${r.najlepszy !== null ? r.najlepszy : '-'}</strong></td>
-                <td>-</td>
-            </tr>`;
-        }
-        for (const r of pk) {
-            html += `<tr>
-                <td class="position-cell">PK</td>
-                <td>${r.nr_startowy || '-'}</td>
-                <td>${r.imie} ${r.nazwisko}</td>
-                <td>${r.rocznik || '-'}</td>
-                <td>${r.pelna_kategoria || '-'}</td>
-                <td>${r.najlepszy !== null ? r.najlepszy : '-'}</td>
-                <td><span class="status-badge status-pk">PK</span></td>
-            </tr>`;
-        }
-        html += `</tbody></table></div>`;
-    }
-    container.innerHTML = html;
-    addMessage(`✅ Załadowano wyniki techniczne`, 'success');
-    
-    document.querySelectorAll('#technicalContainer .technical-medal').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const protocolId = btn.getAttribute('data-protocol-id');
-            const konkurencja = btn.getAttribute('data-konkurencja');
-            const kategoria = btn.getAttribute('data-kategoria');
-            await setMedalowane(protocolId, konkurencja, kategoria);
         });
-    });
-}
-    
+    }
+
     // ==================== ZAKŁADKI ====================
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const tab = btn.getAttribute('data-tab');
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            document.getElementById('statsTab').style.display = tab === 'stats' ? 'block' : 'none';
             document.getElementById('startTab').style.display = tab === 'start' ? 'block' : 'none';
             document.getElementById('resultsTab').style.display = tab === 'results' ? 'block' : 'none';
             document.getElementById('technicalTab').style.display = tab === 'technical' ? 'block' : 'none';
+            
+            if (tab === 'stats') { loadStats(); loadZawodnicyList(); }
             if (tab === 'start') loadStartProtocols();
             if (tab === 'results') loadRanking();
             if (tab === 'technical') loadTechnicalRanking();
         });
     });
     
-    document.getElementById('refreshStartBtn').addEventListener('click', () => loadStartProtocols());
-    document.getElementById('refreshRankingBtn').addEventListener('click', () => loadRanking());
+    // ==================== EVENT LISTENERY ====================
+    document.getElementById('refreshStatsBtn').addEventListener('click', () => { loadStats(); loadZawodnicyList(); });
+    document.getElementById('refreshZawodnicyBtn').addEventListener('click', loadZawodnicyList);
+    document.getElementById('refreshStartBtn').addEventListener('click', loadStartProtocols);
+    document.getElementById('refreshRankingBtn').addEventListener('click', loadRanking);
     document.getElementById('printRankingBtn').addEventListener('click', () => window.print());
-    document.getElementById('refreshTechnicalBtn').addEventListener('click', () => loadTechnicalRanking());
+    document.getElementById('refreshTechnicalBtn').addEventListener('click', loadTechnicalRanking);
     document.getElementById('printTechnicalBtn').addEventListener('click', () => {
-        const technicalContainer = document.getElementById('technicalContainer');
-        if (technicalContainer) {
+        const container = document.getElementById('technicalContainer');
+        if (container && container.innerHTML) {
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`
-                <html><head><title>Wyniki techniczne</title></head>
-                <body>${technicalContainer.innerHTML}</body>
+                <html><head><title>Wyniki techniczne</title>
+                <style>body { font-family: Arial, sans-serif; margin: 20px; } table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 8px; } th { background: #0f3460; color: white; } .position-1 { background: #fff9c4; } .position-2 { background: #e8f5e9; } .position-3 { background: #e3f2fd; }</style>
+                </head>
+                <body>${container.innerHTML}</body>
             </html>`);
             printWindow.document.close();
             printWindow.print();
