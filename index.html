@@ -318,7 +318,7 @@
                 czas_biegu_format: wynik.czas_biegu_format || '',
                 czas_biegu_sekundy: wynik.czas_biegu_sekundy || null,
                 protocolId: protocolId,
-                zakonczone: protocol.zakonczone === true   // DODANE: flaga zakończenia konkurencji
+                zakonczone: protocol.zakonczone === true
             });
         }
     }
@@ -346,43 +346,64 @@
         const [konkurencja, kategoriaBiegu] = key.split('_');
         const protocolId = results[0].protocolId;
         const isMedalowane = medalowane[protocolId];
-        const isZakonczone = results.some(r => r.zakonczone === true); // czy choć jeden protokół w grupie jest zakończony
+        const isZakonczone = results.some(r => r.zakonczone === true);
         
         const normalni = results.filter(r => !r.status || r.status === '');
         const pk = results.filter(r => r.status === 'PK');
         const inni = results.filter(r => r.status && r.status !== 'PK');
         
-        normalni.sort((a, b) => (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999));
-        pk.sort((a, b) => (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999));
+        // ============================================================
+        // SORTOWANIE NORMALNYCH (od najlepszego czasu)
+        // ============================================================
+        normalni.sort((a, b) => {
+            const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
+            const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
+            return czasA - czasB;
+        });
+        
+        // ============================================================
+        // PRZYZNAWANIE MIEJSC Z EX AEQUO
+        // ============================================================
+        let position = 1;
+        let i = 0;
+        while (i < normalni.length) {
+            let j = i;
+            // Znajdź grupę zawodników z identycznymi czasami
+            while (j < normalni.length - 1 && 
+                   normalni[j].czas_biegu_sekundy === normalni[j+1].czas_biegu_sekundy &&
+                   normalni[j].czas_biegu_sekundy !== null) {
+                j++;
+            }
+            const countInGroup = j - i + 1;
+            const isExAequo = countInGroup > 1;
+            
+            for (let k = i; k <= j; k++) {
+                normalni[k].pozycja = position;
+                normalni[k].ex_aequo = isExAequo;
+            }
+            
+            position += countInGroup;
+            i = j + 1;
+        }
+        
+        // PK sortowane osobno
+        pk.sort((a, b) => {
+            const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
+            const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
+            return czasA - czasB;
+        });
+        
+        // Inni (DNF, DQ, DNS)
         const statusOrder = { 'DNF': 0, 'DQ': 1, 'DNS': 2 };
         inni.sort((a, b) => {
             const orderA = statusOrder[a.status] || 3;
             const orderB = statusOrder[b.status] || 3;
             if (orderA !== orderB) return orderA - orderB;
-            return (a.czas_biegu_sekundy || 999999) - (b.czas_biegu_sekundy || 999999);
+            const czasA = a.czas_biegu_sekundy !== null ? a.czas_biegu_sekundy : Infinity;
+            const czasB = b.czas_biegu_sekundy !== null ? b.czas_biegu_sekundy : Infinity;
+            return czasA - czasB;
         });
         
-        // Przyznawanie miejsc z uwzględnieniem ex aequo
-		let position = 1;
-		let i = 0;
-		while (i < normalni.length) {
-			let j = i;
-			// Znajdź wszystkich zawodników z tym samym wynikiem
-			while (j < normalni.length - 1 && 
-				   normalni[j].najlepszy === normalni[j+1].najlepszy &&
-				   JSON.stringify(normalni[j].wszystkie_proby || []) === JSON.stringify(normalni[j+1].wszystkie_proby || [])) {
-				j++;
-			}
-			// Jeśli więcej niż jeden zawodnik ma identyczne wyniki -> ex aequo
-			const count = j - i + 1;
-			for (let k = i; k <= j; k++) {
-				normalni[k].pozycja = position;
-				normalni[k].ex_aequo = count > 1; // flaga dla ex aequo
-			}
-			// Przesuń pozycję o liczbę zawodników w grupie
-			position += count;
-			i = j + 1;
-		}
         html += `<div class="card" style="margin-top: 20px;" data-protocol-id="${protocolId}">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                 <h3>${konkurencja || '?'} - ${kategoriaBiegu || '?'} ${isZakonczone ? '🔒' : ''}</h3>
@@ -393,6 +414,10 @@
             <table class="ranking-table"><thead>
                 <th>Poz.</th><th>Nr</th><th>Zawodnik</th><th>Rocznik</th><th>Kategoria</th><th>Czas</th><th>Bieg</th><th>Status</th>
             </thead><tbody>`;
+        
+        // ============================================================
+        // NORMALNI (z ex aequo)
+        // ============================================================
         for (const r of normalni) {
             const isDuplicate = nrStartowyCount[r.nr_startowy] > 2;
             const nrStyle = isDuplicate ? 'style="background:#fff3cd; font-weight:bold;"' : '';
@@ -400,17 +425,28 @@
             if (r.pozycja === 1) rowClass = 'position-1';
             else if (r.pozycja === 2) rowClass = 'position-2';
             else if (r.pozycja === 3) rowClass = 'position-3';
+            
+            // Wyświetlanie pozycji z ex aequo
+            let pozycjaDisplay = r.pozycja;
+            if (r.ex_aequo) {
+                pozycjaDisplay = r.pozycja + '=';
+            }
+            
             html += `<tr class="${rowClass}">
-                <td class="position-cell"><strong>${r.pozycja}</strong></td>
+                <td class="position-cell"><strong>${pozycjaDisplay}</strong></td>
                 <td ${nrStyle}>${r.nr_startowy || '-'}${isDuplicate ? ' ⚠️' : ''}</td>
                 <td><strong>${r.imie} ${r.nazwisko}</strong></td>
                 <td>${r.rocznik || '-'}</td>
                 <td>${r.pelna_kategoria || '-'}</td>
                 <td><strong>${r.czas_biegu_format || '-'}</strong></td>
                 <td>${r.numer_biegu || '-'}</td>
-                <td>-</span></td>
+                <td>-</td>
             </tr>`;
         }
+        
+        // ============================================================
+        // PK
+        // ============================================================
         for (const r of pk) {
             html += `<tr>
                 <td class="position-cell">PK</td>
@@ -423,6 +459,10 @@
                 <td><span class="status-badge status-pk">PK</span></td>
             </tr>`;
         }
+        
+        // ============================================================
+        // INNI (DNF, DQ, DNS)
+        // ============================================================
         for (const r of inni) {
             let statusClass = '';
             if (r.status === 'DNF') statusClass = 'status-dnf';
@@ -437,7 +477,7 @@
                 <td>${r.czas_biegu_format || '-'}</td>
                 <td>${r.numer_biegu || '-'}</td>
                 <td><span class="status-badge ${statusClass}">${r.status}</span></td>
-                </tr>`;
+            </tr>`;
         }
         html += `</tbody></table></div>`;
     }
